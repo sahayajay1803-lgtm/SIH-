@@ -10,10 +10,12 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173"
     supabase_url: str = ""
     supabase_key: str = ""
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:7b"
-    ollama_timeout_seconds: float = 90.0
-    ollama_max_concurrency: int = 2
+    llm_provider: str = "glm_cloud"
+    glm_base_url: str = "https://open.bigmodel.cn/api/paas/v4"
+    glm_api_key: str = ""
+    glm_model: str = "glm-5.3"
+    llm_timeout_seconds: float = 90.0
+    llm_max_concurrency: int = 4
 
     model_config = SettingsConfigDict(env_file=".env", case_sensitive=False, extra="ignore")
 

@@ -53,7 +53,7 @@ class IntakeChatResponse(BaseModel):
     reply: str
     extracted_fields: dict[str, Any] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
-    source: str = "ollama:qwen2.5"
+    source: str = "glm_cloud:glm-5.3"
 
 
 class ExplanationRequest(BaseModel):
@@ -70,5 +70,5 @@ class ExplanationResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str
-    ollama_configured: bool
+    llm_configured: bool
     supabase_configured: bool
