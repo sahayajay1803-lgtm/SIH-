@@ -27,8 +27,8 @@ def parse_json_object(raw: str) -> dict[str, Any]:
     return value
 
 
-class GLMCloudClient:
-    """OpenAI-compatible GLM cloud client with bounded concurrent requests."""
+class OllamaCloudClient:
+    """OpenAI-compatible Ollama Cloud client with bounded concurrent requests."""
 
     def __init__(self, base_url: str, api_key: str, model: str, timeout_seconds: float, max_concurrency: int) -> None:
         self.base_url = base_url.rstrip("/")
@@ -40,7 +40,7 @@ class GLMCloudClient:
     async def status(self) -> dict[str, Any]:
         if not self.api_key:
             return {"available": False, "configured": False}
-        return {"available": True, "configured": True, "provider": "glm_cloud", "model": self.model}
+        return {"available": True, "configured": True, "provider": "ollama_cloud", "model": self.model}
 
     async def generate(self, prompt: str, system: str, *, stream: bool = False) -> str | AsyncIterator[str]:
         payload: dict[str, Any] = {
@@ -61,9 +61,9 @@ class GLMCloudClient:
                     response.raise_for_status()
                     return self._content(response.json())
             except (httpx.TimeoutException, httpx.ConnectError) as exc:
-                raise LLMUnavailable("GLM cloud timed out or is unavailable") from exc
+                raise LLMUnavailable("Ollama Cloud timed out or is unavailable") from exc
             except httpx.HTTPStatusError as exc:
-                raise LLMUnavailable(f"GLM cloud returned HTTP {exc.response.status_code}") from exc
+                raise LLMUnavailable(f"Ollama Cloud returned HTTP {exc.response.status_code}") from exc
 
     async def _stream(self, payload: dict[str, Any]) -> AsyncIterator[str]:
         async with self.semaphore:
@@ -80,9 +80,9 @@ class GLMCloudClient:
                                 if delta:
                                     yield delta
             except (httpx.TimeoutException, httpx.ConnectError) as exc:
-                raise LLMUnavailable("GLM cloud stream timed out or is unavailable") from exc
+                raise LLMUnavailable("Ollama Cloud stream timed out or is unavailable") from exc
             except httpx.HTTPStatusError as exc:
-                raise LLMUnavailable(f"GLM cloud returned HTTP {exc.response.status_code}") from exc
+                raise LLMUnavailable(f"Ollama Cloud returned HTTP {exc.response.status_code}") from exc
 
     @property
     def _endpoint(self) -> str:

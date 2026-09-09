@@ -22,4 +22,4 @@ app.include_router(router, prefix=settings.api_prefix)
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", llm_configured=bool(settings.glm_api_key), supabase_configured=bool(settings.supabase_url))
+    return HealthResponse(status="ok", llm_configured=bool(settings.ollama_api_key), supabase_configured=bool(settings.supabase_url))

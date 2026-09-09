@@ -6,7 +6,7 @@ This backend operationalizes the SRS goal: help Maharashtra entrepreneurs discov
 
 ## 1. Architecture Overview
 
-The selected backend is **Python 3.12 + FastAPI**. FastAPI gives typed request contracts, async I/O for GLM Cloud, and OpenAPI documentation at `/docs`.
+The selected backend is **Python 3.12 + FastAPI**. FastAPI gives typed request contracts, async I/O for Ollama Cloud, and OpenAPI documentation at `/docs`.
 
 Flow:
 
@@ -14,18 +14,18 @@ Flow:
 
 `FastAPI -> deterministic rules engine -> checklist`
 
-`FastAPI -> GLM-5.3 Cloud -> intake clarification or explanation only`
+`FastAPI -> Ollama Cloud (gemma4:31b-cloud) -> intake clarification or explanation only`
 
 `FastAPI -> MaitriAdapter interface -> mock now, real MAITRI adapter later`
 
 Supabase is the system of record for profiles, approvals, checklist items, documents, notifications, and audit events. Supabase Storage should hold document bytes; database rows hold metadata and validation state. Row Level Security must be enabled before production data is used.
 
-The rules engine is intentionally local and deterministic. The model cannot decide eligibility. GLM receives only the profile facts and an already-selected approval when generating explanations. Every explanation returns the approval's source, including the explicit illustrative placeholder status.
+The rules engine is intentionally local and deterministic. The model cannot decide eligibility. Gemma receives only the profile facts and an already-selected approval when generating explanations. Every explanation returns the approval's source, including the explicit illustrative placeholder status.
 
 ### Bottlenecks and concurrency
 
 - **Cloud model rate limits/inference:** requests are gated by `LLM_MAX_CONCURRENCY` (default 4) with an `asyncio.Semaphore`. Extra requests wait instead of creating an unbounded burst.
-- **Long generation:** `LLM_TIMEOUT_SECONDS` bounds the request. Routes return HTTP 503 when GLM Cloud is unavailable.
+- **Long generation:** `LLM_TIMEOUT_SECONDS` bounds the request. Routes return HTTP 503 when Ollama Cloud is unavailable.
 - **Supabase round trips:** keep checklist eligibility in-process and use indexed profile/status columns. Move heavy analytics to SQL views or background jobs later.
 - **Large files:** upload directly to Supabase Storage using signed URLs in the next slice; never proxy large document bytes through the API.
 - **Horizontal scaling:** the in-process semaphore is per instance. For multiple API replicas, add a shared queue/worker or an Ollama pool and rate limit at the gateway.
@@ -59,9 +59,9 @@ Next endpoints to add for the rest of the MVP are `POST /api/documents/{item_id}
 
 The AI endpoints are not authorization bypasses: authentication, ownership checks, request quotas, and audit logging should be placed in dependencies before connecting a frontend to them.
 
-## 4. GLM Cloud Integration Strategy
+## 4. Ollama Cloud Integration Strategy
 
-`app/services/llm.py` calls the OpenAI-compatible `POST {GLM_BASE_URL}/chat/completions` endpoint with `model`, system/user messages, `stream`, and low temperature. The client sends `Authorization: Bearer {GLM_API_KEY}` and translates connection, timeout, and HTTP errors to a stable `LLMUnavailable` exception.
+`app/services/llm.py` calls the OpenAI-compatible `POST {OLLAMA_BASE_URL}/chat/completions` endpoint with `model=gemma4:31b-cloud`, system/user messages, `stream`, and low temperature. The client sends `Authorization: Bearer {OLLAMA_API_KEY}` and translates connection, timeout, and HTTP errors to a stable `LLMUnavailable` exception.
 
 The intake system prompt requires JSON with `reply`, `extracted_fields`, and `missing_fields`. It says to extract only explicit facts and ask clarification instead of guessing. The API validates that response with Pydantic.
 
@@ -76,7 +76,7 @@ Streaming consumes OpenAI-compatible `data: {json}` chunks. The client yields on
 - `app/services/rules.py`: illustrative data-driven rules. Replace seed conditions and sources only after legal verification.
 - `app/services/rag.py`: source-labelled retrieval over the current illustrative approval knowledge chunks.
 - `app/services/supabase.py`: Supabase client and profile persistence boundary.
-- `app/services/llm.py`: bounded, timeout-aware GLM Cloud client.
+- `app/services/llm.py`: bounded, timeout-aware Ollama Cloud client.
 - `app/schemas.py`: typed API contracts.
 
 The AI layer is deliberately not used by `evaluate_profile`. This is the main safety and correctness boundary from the SRS.
@@ -90,10 +90,10 @@ Explanation generation uses retrieval-augmented context after `find_approval` ha
 1. Create a Supabase project.
 2. Run `schema.sql` in its SQL editor.
 3. Copy `.env.example` to `.env`, then set `SUPABASE_URL` and `SUPABASE_KEY`.
-4. Local Python path: install Python 3.12+, set `GLM_API_KEY`, run `pip install -r requirements.txt`, and start `uvicorn app.main:app --reload`.
-5. Docker path: set `GLM_API_KEY` in `.env`, then run `docker compose up --build`.
+4. Local Python path: install Python 3.12+, set `OLLAMA_API_KEY`, run `pip install -r requirements.txt`, and start `uvicorn app.main:app --reload`.
+5. Docker path: set `OLLAMA_API_KEY` in `.env`, then run `docker compose up --build`.
 
-Supabase is a managed database service, so it is not duplicated in this Compose file. The Compose stack starts only the API and connects it to Supabase and GLM Cloud. A fully local Supabase stack should be started with the Supabase CLI (`supabase start`) when local Postgres/Auth/Storage emulation is required.
+Supabase is a managed database service, so it is not duplicated in this Compose file. The Compose stack starts only the API and connects it to Supabase and Ollama Cloud. A fully local Supabase stack should be started with the Supabase CLI (`supabase start`) when local Postgres/Auth/Storage emulation is required.
 
 ### Production hardening
 

@@ -53,7 +53,7 @@ class IntakeChatResponse(BaseModel):
     reply: str
     extracted_fields: dict[str, Any] = Field(default_factory=dict)
     missing_fields: list[str] = Field(default_factory=list)
-    source: str = "glm_cloud:glm-5.3"
+    source: str = "ollama_cloud:gemma4:31b-cloud"
 
 
 class ExplanationRequest(BaseModel):

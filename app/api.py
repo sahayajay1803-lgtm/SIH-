@@ -15,14 +15,14 @@ from app.schemas import (
     IntakeChatRequest,
     IntakeChatResponse,
 )
-from app.services.llm import GLMCloudClient, LLMUnavailable, parse_json_object
+from app.services.llm import LLMUnavailable, OllamaCloudClient, parse_json_object
 from app.services.rag import retrieve
 from app.services.rules import evaluate_profile, find_approval
 from app.services.supabase import get_profile, insert_profile
 
 router = APIRouter()
 settings = get_settings()
-llm = GLMCloudClient(settings.glm_base_url, settings.glm_api_key, settings.glm_model, settings.llm_timeout_seconds, settings.llm_max_concurrency)
+llm = OllamaCloudClient(settings.ollama_base_url, settings.ollama_api_key, settings.ollama_model, settings.llm_timeout_seconds, settings.llm_max_concurrency)
 
 INTAKE_SYSTEM = """You are a careful intake assistant for a Maharashtra industrial approval platform.
 Return JSON with keys reply, extracted_fields, missing_fields. Never decide legal eligibility or invent approvals.
@@ -59,7 +59,7 @@ async def intake(request: IntakeChatRequest) -> IntakeChatResponse:
         data = parse_json_object(raw)
         return IntakeChatResponse.model_validate(data)
     except (json.JSONDecodeError, ValueError) as exc:
-        raise HTTPException(status_code=502, detail="GLM returned a non-JSON intake response") from exc
+        raise HTTPException(status_code=502, detail="Ollama Cloud returned a non-JSON intake response") from exc
     except LLMUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
@@ -67,9 +67,9 @@ async def intake(request: IntakeChatRequest) -> IntakeChatResponse:
 @router.get("/ai/status")
 async def ai_status() -> dict[str, Any]:
     try:
-        return {"model": settings.glm_model, **await llm.status()}
+        return {"model": settings.ollama_model, **await llm.status()}
     except LLMUnavailable as exc:
-        return {"model": settings.glm_model, "available": False, "configured": False, "detail": str(exc)}
+        return {"model": settings.ollama_model, "available": False, "configured": False, "detail": str(exc)}
 
 
 @router.post("/ai/explanations", response_model=ExplanationResponse)
@@ -85,7 +85,7 @@ async def explain(request: ExplanationRequest) -> ExplanationResponse:
     }
     try:
         explanation = await llm.generate(json.dumps(context), EXPLANATION_SYSTEM)
-        return ExplanationResponse(approval_id=approval.approval_id, explanation=explanation, source=approval.source, model=settings.glm_model)
+        return ExplanationResponse(approval_id=approval.approval_id, explanation=explanation, source=approval.source, model=settings.ollama_model)
     except LLMUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
 
