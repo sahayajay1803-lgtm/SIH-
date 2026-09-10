@@ -23,3 +23,8 @@ app.include_router(router, prefix=settings.api_prefix)
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
     return HealthResponse(status="ok", llm_configured=bool(settings.ollama_api_key), supabase_configured=bool(settings.supabase_url))
+
+
+@app.get("/")
+def root() -> dict[str, str]:
+    return {"name": settings.app_name, "docs": "/docs", "frontend": "http://localhost:5173"}
