@@ -57,6 +57,8 @@ The Python Pydantic models in `app/schemas.py` validate API boundaries. The sche
 
 Next endpoints to add for the rest of the MVP are `POST /api/documents/{item_id}`, `POST /api/maitri/submit`, `GET /api/status/{profile_id}`, `GET /api/official/applications`, and `GET /api/official/analytics`.
 
+The current implementation now also exposes `GET /api/schemes`, `GET /api/profiles/{profile_id}/schemes`, `POST /api/ai/documents/review`, and `POST /api/maitri/submit`. Scheme data is an illustrative central/state catalogue for the frontend. Document review accepts PDF/JPG/PNG up to 10 MB, extracts PDF text, asks the configured model for a scored constructive review, and returns a review ID. The MAITRI route consumes that review ID through a clearly simulated adapter; it does not contact the real MAITRI portal.
+
 The AI endpoints are not authorization bypasses: authentication, ownership checks, request quotas, and audit logging should be placed in dependencies before connecting a frontend to them.
 
 ## 4. Ollama Cloud Integration Strategy

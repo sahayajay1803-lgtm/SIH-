@@ -72,3 +72,61 @@ class HealthResponse(BaseModel):
     status: str
     llm_configured: bool
     supabase_configured: bool
+
+
+class Scheme(BaseModel):
+    scheme_id: str
+    name: str
+    government_level: str
+    department: str
+    category: str
+    description: str
+    benefits: list[str]
+    eligibility: list[str]
+    required_documents: list[str]
+    application_url: str
+    source_url: str
+    last_verified_at: date
+    tags: list[str] = Field(default_factory=list)
+
+
+class SchemeListResponse(BaseModel):
+    items: list[Scheme]
+    total: int
+    page: int
+    page_size: int
+
+
+class SchemeMatch(BaseModel):
+    scheme: Scheme
+    match_score: int = Field(ge=0, le=100)
+    reasons: list[str]
+    missing_information: list[str] = Field(default_factory=list)
+
+
+class SchemeMatchResponse(BaseModel):
+    profile_id: UUID
+    matches: list[SchemeMatch]
+    source: str = "illustrative_mock_catalogue"
+
+
+class DocumentReview(BaseModel):
+    review_id: UUID
+    file_name: str
+    content_type: str
+    status: str
+    score: int = Field(ge=0, le=100)
+    summary: str
+    strengths: list[str]
+    issues: list[str]
+    recommendations: list[str]
+    extracted_text_preview: str = ""
+    model: str
+    source: str = "ai_assisted_prevalidation"
+
+
+class MaitriSubmissionResponse(BaseModel):
+    submission_id: str
+    status: str
+    message: str
+    simulated: bool = True

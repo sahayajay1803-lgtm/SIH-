@@ -10,8 +10,6 @@ class KnowledgeChunk:
     content: str
     source: str
 
-
-# Illustrative retrieval corpus. Replace with verified official material before production use.
 KNOWLEDGE_BASE = (
     KnowledgeChunk(
         chunk_id="factory-license-overview",

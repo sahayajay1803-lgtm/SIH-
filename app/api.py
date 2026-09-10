@@ -2,7 +2,7 @@ import json
 from typing import Any
 from uuid import UUID
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, File, HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.config import get_settings
@@ -10,14 +10,21 @@ from app.schemas import (
     BusinessProfile,
     BusinessProfileCreate,
     ChecklistResponse,
+    DocumentReview,
     ExplanationRequest,
     ExplanationResponse,
     IntakeChatRequest,
     IntakeChatResponse,
+    MaitriSubmissionResponse,
+    SchemeListResponse,
+    SchemeMatchResponse,
 )
+from app.services.document_review import extract_document, review_document
 from app.services.llm import LLMUnavailable, OllamaCloudClient, parse_json_object
+from app.services.maitri import submit_to_mock_maitri
 from app.services.rag import retrieve
 from app.services.rules import evaluate_profile, find_approval
+from app.services.schemes import list_schemes, match_schemes
 from app.services.supabase import get_profile, insert_profile
 
 router = APIRouter()
@@ -32,6 +39,8 @@ Ask a concise clarification when a required value is absent or ambiguous."""
 EXPLANATION_SYSTEM = """You explain an approval already selected by a deterministic rules engine.
 Use only the supplied profile, approval facts, and retrieved source context. Do not change whether it applies, invent legal thresholds, or provide legal advice.
 Treat retrieved context as reference material, not as proof of legal applicability. Mention that the source is illustrative when it is illustrative. Return plain text in under 120 words."""
+
+ALLOWED_DOCUMENT_TYPES = {"application/pdf", "image/jpeg", "image/png"}
 
 
 @router.post("/profiles", response_model=BusinessProfile, status_code=201)
@@ -49,6 +58,24 @@ def checklist(profile_id: UUID) -> ChecklistResponse:
         raise HTTPException(status_code=404, detail="Profile not found")
     profile = BusinessProfileCreate.model_validate(stored)
     return ChecklistResponse(profile_id=profile_id, approvals=evaluate_profile(profile))
+
+
+@router.get("/schemes", response_model=SchemeListResponse)
+def schemes(search: str = "", government_level: str | None = None, category: str | None = None, page: int = 1, page_size: int = 20) -> SchemeListResponse:
+    if page < 1 or page_size < 1 or page_size > 100:
+        raise HTTPException(status_code=400, detail="page must be positive and page_size must be between 1 and 100")
+    results = list_schemes(search, government_level, category)
+    start = (page - 1) * page_size
+    return SchemeListResponse(items=results[start : start + page_size], total=len(results), page=page, page_size=page_size)
+
+
+@router.get("/profiles/{profile_id}/schemes", response_model=SchemeMatchResponse)
+def profile_schemes(profile_id: UUID) -> SchemeMatchResponse:
+    stored = get_profile(profile_id)
+    if not stored:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    profile = BusinessProfileCreate.model_validate(stored)
+    return SchemeMatchResponse(profile_id=profile_id, matches=match_schemes(profile))
 
 
 @router.post("/ai/intake", response_model=IntakeChatResponse)
@@ -106,3 +133,27 @@ async def explain_stream(request: ExplanationRequest) -> StreamingResponse:
         return StreamingResponse(stream, media_type="text/plain")
     except LLMUnavailable as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/ai/documents/review", response_model=DocumentReview)
+async def document_review(file: UploadFile = File(...)) -> DocumentReview:
+    if file.content_type not in ALLOWED_DOCUMENT_TYPES:
+        raise HTTPException(status_code=415, detail="Only PDF, JPG, and PNG files are supported")
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="The uploaded document is empty")
+    if len(content) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="The document must be 10 MB or smaller")
+    try:
+        extracted = extract_document(file.filename or "uploaded-document", file.content_type, content)
+        return await review_document(extracted, llm)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LLMUnavailable as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.post("/maitri/submit", response_model=MaitriSubmissionResponse)
+def maitri_submit(profile_id: UUID, file_name: str, review_id: UUID) -> MaitriSubmissionResponse:
+    result = submit_to_mock_maitri(str(profile_id), file_name, str(review_id))
+    return MaitriSubmissionResponse.model_validate(result)
